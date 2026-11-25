@@ -1,0 +1,52 @@
+{
+  "name": "@prooftask/sdk",
+  "version": "0.1.1",
+  "publishConfig": { "access": "public" },
+  "license": "Apache-2.0",
+  "description": "ProofTask Agent API client generated from the OpenAPI contract, with webhook signature verification, idempotent request IDs, pagination, typed errors and offline record verification by the published verifier.",
+  "keywords": [
+    "prooftask",
+    "acceptance",
+    "verifiable-acceptance",
+    "result-record",
+    "conformity",
+    "offline-verification",
+    "ai-agents",
+    "mcp",
+    "openapi",
+    "webhooks"
+  ],
+  "homepage": "https://prooftask.com/developers",
+  "bugs": {
+    "url": "https://prooftask.com/support"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "verifier",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "prepack": "node scripts/prepack.mjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cognitive-emergence/prooftask-sdk.git",
+    "directory": "typescript"
+  }
+}

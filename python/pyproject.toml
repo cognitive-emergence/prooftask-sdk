@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prooftask"
+version = "0.1.1"
+description = "ProofTask Agent API client generated from the OpenAPI contract, with webhook signature verification, idempotent request IDs, pagination and typed errors. Standard library only."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+dependencies = []
+keywords = ["prooftask", "acceptance", "verifiable acceptance", "result record", "conformity", "offline verification", "ai agents", "openapi", "webhooks"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Libraries",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://prooftask.com/developers"
+Source = "https://github.com/cognitive-emergence/prooftask-sdk/tree/main/python"
+Documentation = "https://prooftask.com/developers"
+Specification = "https://github.com/cognitive-emergence/tsto-spec/tree/main/conformity"
+Changelog = "https://prooftask.com/changelog"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+prooftask = ["_generated_contract.json", "py.typed"]
+"prooftask.conformity" = ["data/*.json"]
