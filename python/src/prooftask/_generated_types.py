@@ -460,6 +460,7 @@ class _CreateDraftRequired(TypedDict):
 
 class CreateDraft(_CreateDraftRequired, total=False):
     baselineStatement: "str"
+    bitcoinTimeProof: "bool"
     buyerInputs: "str"
     buyerName: "str"
     commercialReference: "str"
@@ -840,6 +841,7 @@ class _CreateProjectRequired(TypedDict):
     termsPolicy: "TermsPolicy"
 
 class CreateProject(_CreateProjectRequired, total=False):
+    bitcoinTimeProof: "bool"
     commercialReference: "str"
     historyReference: "CreateProjectHistoryReference"
     publicRegistration: "Literal[True]"
@@ -1609,6 +1611,7 @@ class _ProposalTermsRequired(TypedDict):
     termsPolicy: "TermsPolicy"
 
 class ProposalTerms(_ProposalTermsRequired, total=False):
+    bitcoinTimeProof: "bool"
     commercialReference: "str"
     historyReference: "ProposalTermsHistoryReference"
     publicRegistration: "Literal[True]"

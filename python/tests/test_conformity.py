@@ -1,6 +1,7 @@
 """Unit tests for the independent Conformity verifier: RFC 8032 Ed25519 vectors, RFC 8785 serialization,
 strict JSON input and the vendored standard files. The full behaviour is checked by the language-neutral suite in
 conformance/conformity-1 (tests/conformity-conformance-suite.test.ts runs it). Standard library only."""
+import base64
 import hashlib
 import json
 import os
@@ -92,6 +93,87 @@ class VendoredStandardsTest(unittest.TestCase):
         for name in sorted(os.listdir(data)):
             with open(os.path.join(data, name), "rb") as bundled, open(os.path.join(ROOT, "standards", name), "rb") as published:
                 self.assertEqual(hashlib.sha256(bundled.read()).hexdigest(), hashlib.sha256(published.read()).hexdigest(), name)
+
+
+
+@NEEDS_SPECIFICATION
+class IndependentAnchorTest(unittest.TestCase):
+    @staticmethod
+    def fixture(path):
+        with open(os.path.join(ROOT, "tests", "fixtures", path), encoding="utf-8") as handle:
+            return json.load(handle)
+
+    def test_real_sectigo_signature_chain_policy_and_imprint(self):
+        from prooftask.conformity._anchor_policy import DEFAULT_TRUST
+        from prooftask.conformity._timestamp import timestamp
+        fixture = self.fixture("time-anchor/sectigo-2026-11-12.json")
+        token = base64.b64decode(fixture["token"])
+        roots = DEFAULT_TRUST["timeStampRoots"]
+        validation = fixture["rootsAndCrlsPem"].encode()
+        result = timestamp(token, fixture["digest"], roots, validation)
+        self.assertEqual(result["genTime"], fixture["genTime"])
+        self.assertEqual(result["tsa"], "Sectigo Public Time Stamping Signer R37")
+        self.assertEqual(result["revocation"], "NOT_CHECKED")  # CRLs precede the required post-token observation.
+        for wrong_token, imprint, pins in [(token, "00" * 32, roots), (token, fixture["digest"], []),
+                                           (token[:-1] + bytes([token[-1] ^ 1]), fixture["digest"], roots)]:
+            with self.assertRaises(ValueError):
+                timestamp(wrong_token, imprint, pins, validation)
+        with self.assertRaisesRegex(ValueError, "TRUST_TIME_POLICY_MISMATCH"):
+            timestamp(token, fixture["digest"], roots, validation, ["1.2.3"])
+
+    def test_frozen_root_pin_does_not_trust_siblings_in_multi_pem(self):
+        from prooftask.conformity._anchor_policy import DEFAULT_TRUST
+        from prooftask.conformity._anchors import restricted_tsa
+        from prooftask.conformity._timestamp import pem_blocks
+        root = DEFAULT_TRUST["timeStampRoots"][0]
+        # One recipient-provided PEM may contain multiple certificates. The record freezes individual DER fingerprints.
+        fixture = self.fixture("time-anchor/sectigo-2026-11-12.json")
+        from prooftask.conformity._timestamp import single
+        token = base64.b64decode(fixture["token"])
+        carried = single(single(token).fields()[1].content).fields()[3].fields()[0].raw
+        roots = [{"pem": root["pem"] + "-----BEGIN CERTIFICATE-----\n" + base64.encodebytes(carried).decode() + "-----END CERTIFICATE-----\n"}]
+        policy = {"time": {"rootSha256": [root["sha256"]], "requirement": "OPTIONAL"}}
+        record = {"specification": {"extensions": {"com.prooftask.agreement": {"trustPolicy": policy}}}}
+        selected, _ = restricted_tsa({"timeStampRoots": roots}, record)
+        only = list(pem_blocks(selected[0]["pem"].encode(), b"CERTIFICATE"))
+        self.assertEqual([hashlib.sha256(der).hexdigest() for der in only], [root["sha256"]])
+        self.assertEqual(len(selected), 1)
+
+    def test_real_mainnet_proof_headers_and_checkpoint(self):
+        from prooftask.conformity._anchor_policy import DEFAULT_TRUST
+        from prooftask.conformity._bitcoin import MAGIC, verify_bitcoin
+        fixture = self.fixture("bitcoin/mainnet-975744.json")
+        leaf = bytes.fromhex(fixture["attested"]["coinbaseTxid"])[::-1]
+        operations = b"".join(b"\xf0\x20" + bytes.fromhex(sibling)[::-1] + b"\x08\x08" for sibling in fixture["attested"]["merkle"])
+        proof = MAGIC + leaf + operations + bytes.fromhex("000588960d73d719010381c73b")
+        headers = b"".join(bytes.fromhex(h["headerHex"]) for h in fixture["headers"])
+        params = DEFAULT_TRUST["bitcoin"]
+        report, reason, upper = verify_bitcoin(proof, leaf.hex(), params, headers, 975744)
+        self.assertEqual((report["status"], report["height"], report["confirmations"]), ("VERIFIED", 975745, 7))
+        self.assertEqual(report["blockHash"], fixture["headers"][1]["hash"])
+        self.assertEqual(reason, "BITCOIN_POW_LINKED_NOT_FULL_NODE")
+        self.assertGreater(upper, report["blockTime"])
+        self.assertEqual(verify_bitcoin(proof, leaf.hex(), params, headers[:240], 975744)[0]["status"], "PENDING")
+        self.assertEqual(verify_bitcoin(proof, leaf.hex(), params, headers[80:], 975745)[1], "BITCOIN_CHECKPOINT_NOT_HELD")
+        with self.assertRaises(ValueError):
+            verify_bitcoin(proof, "00" * 32, params, headers, 975744)
+        with self.assertRaises(ValueError):
+            verify_bitcoin(proof, leaf.hex(), params, headers[:-1] + bytes([headers[-1] ^ 1]), 975744)
+
+    def test_typed_index_requires_subject_and_bounded_items(self):
+        from prooftask.conformity._anchors import TYPED, validate_index
+        digest = "00" * 32
+        item = {"type": "rfc3161", "token": "evidence/rfc3161/1.der", "assurance": "BEST_EFFORT",
+                "subject": {"kind": "RECORD", "digest": digest}}
+        index = {"schema": TYPED, "subject": {"alg": "sha-256", "digest": digest}, "items": [item]}
+        self.assertIn(item["token"], validate_index(json.dumps(index).encode())[1])
+        for change in [{"assurance": "UNKNOWN"}, {"token": "evidence/rfc3161/../1.der"}, {"subject": {"kind": "BATCH_ROOT", "digest": digest}},
+                       {"subject": {"kind": "RECORD", "digest": "11" * 32}}, {"renewals": [{"token": item["token"]}] * 33}]:
+            with self.assertRaises(ValueError):
+                validate_index(json.dumps(dict(index, items=[dict(item, **change)])).encode())
+        for items in [[item, item], [item] * 1025]:
+            with self.assertRaises(ValueError):
+                validate_index(json.dumps(dict(index, items=items)).encode())
 
 
 class ApiTest(unittest.TestCase):

@@ -386,6 +386,7 @@ export type ContentKeyWrap = {
 
 export type CreateDraft = {
   baselineStatement?: string;
+  bitcoinTimeProof?: boolean;
   buyerInputs?: string;
   buyerName?: string;
   commercialReference?: string;
@@ -650,6 +651,7 @@ export type CreateDraft = {
 
 export type CreateProject = {
   baselineStatement: string;
+  bitcoinTimeProof?: boolean;
   buyerName: string;
   commercialReference?: string;
   confirmationDigest: string;
@@ -1270,6 +1272,7 @@ export type ProposalResponseCommand = {
 
 export type ProposalTerms = {
   baselineStatement: string;
+  bitcoinTimeProof?: boolean;
   buyerName: string;
   commercialReference?: string;
   criteria: Array<Criterion>;

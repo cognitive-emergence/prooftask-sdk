@@ -27,11 +27,15 @@ print(report["status"], report["reasons"])   # INVALID, INDETERMINATE, PARTIAL_D
 ```
 
 or `python -m prooftask.conformity ARTIFACT TRUST [OPTIONS.json]` (exit 0 verified, 1 INVALID, 3 INDETERMINATE, 2 usage).
-You supply the trusted issuer keys; the verifier never fetches them. Not implemented: anchoring evidence (`evidence/`,
-trusted timestamps and Bitcoin proofs, package standard 1.2). A 1.1 package that carries it raises
-`UnsupportedEvidence` (CLI exit 2) instead of being reported without it; use the Node.js verifier
-([`verify-conformity.mjs`](https://prooftask.com/developers/verify-conformity.mjs): `node verify-conformity.mjs RECORD [TRUST]`) for those. The ProofTask product record wrapper
-(`prooftask-result-record-*.json`, with the product trust bundle) is also Node.js only.
+You supply the trusted issuer keys. Package verification checks RFC 3161 tokens and OpenTimestamps proofs offline
+against the bundled Sectigo root and Bitcoin checkpoint. You can supply your own `anchor_trust` (CLI option
+`anchorTrust`) with `timeStampRoots`, `bitcoin` and optional `timeStampPolicyOids`. ECDSA timestamp signatures
+use the system `openssl dgst` command. RSA timestamps and Bitcoin proofs use Python's standard library.
+
+Typed event evidence identifies each signed event and checks its chain prefix. Each event reports its recorder time
+separately from the independent upper bound, which includes the token's accuracy and requires revocation coverage.
+The assurance label describes the service declared by the package supplier. Use the [Node.js verifier](https://prooftask.com/developers/verify-conformity.mjs)
+for the ProofTask product record wrapper (`prooftask-result-record-*.json`, with the product trust bundle).
 
 ## Quickstart
 

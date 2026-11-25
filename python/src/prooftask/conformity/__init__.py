@@ -1,4 +1,4 @@
-"""Independent offline verifier for Conformity 1.0/1.1 records (standard library only).
+"""Independent offline verifier for Conformity records, packages and their timestamp evidence.
 
     from prooftask.conformity import verify_record
     report = verify_record(open("record.json", "rb").read(), trust)

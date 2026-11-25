@@ -5,8 +5,8 @@ attribution, standards/conformity-record-1.3.md and conformity-verification-1.3.
 it shares no code with the JavaScript reference verifier.
 
 Scope: Records as full Packages and as partial SD-JWT presentations, Status statements and Summaries, with
-issuer keys the relying party supplies. Not implemented: anchoring evidence (`evidence/`, package standard 1.2);
-a 1.1 or 1.2 Package that carries it raises UnsupportedEvidence instead of returning a report without it.
+issuer keys the relying party supplies. Optional RFC 3161 and Bitcoin evidence is checked against independent
+receiver-held trust. Eligible native event heads use the ordered, issuer-signed JEP commitments.
 
 No network access, no system clock unless the caller omits checkedAt for a Status, no product-specific handlers.
 """
@@ -17,7 +17,7 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 
-from . import _ed25519
+from . import _anchors, _ed25519
 from ._json import InputError, canonical, canonical_bytes, decode_utf8, is_integer, parse_bytes, parse_text, same
 
 RECORD_10 = "https://humanjudgment.org/ns/conformity-record/1.0"
@@ -66,7 +66,7 @@ class Fail(Exception):
 
 
 class UnsupportedEvidence(Exception):
-    """The Package carries anchoring evidence, which this verifier does not implement."""
+    """Reserved for callers that handled unsupported evidence in earlier releases."""
 
 
 def demand(ok, code):
@@ -993,7 +993,7 @@ def reporter_statements(record, files):
     return found
 
 
-def verify_package(package, trust, handlers):
+def verify_package(package, trust, handlers, anchor_trust=None):
     demand(isinstance(package, dict) and set(package) == {"schema", "files"} and isinstance(package["files"], list)
            and len(package["files"]) <= 10000, "INVALID_PACKAGE")
     files = {}
@@ -1028,15 +1028,32 @@ def verify_package(package, trust, handlers):
                and entry["path"] not in seen and isinstance(entry.get("mediaType"), str) and isinstance(entry.get("sha256"), str), "PACKAGE_CONTENT_MISMATCH")
         seen.add(entry["path"])
         check(entry)
-    if supplemented and any(path.startswith("evidence/") for path in files):
-        raise UnsupportedEvidence("This verifier does not implement anchoring evidence (evidence/, package standard 1.2).")
-    statements = reporter_statements(record, files)
-    accepted.update(s["path"] for s in statements)
-    ignored = [path for path in files if path not in accepted]
     tsto, events = parse_bytes(tsto_bytes), [parse_bytes(b) for b in event_bytes]
     origin_keys = keys if supplemented else KeyPolicy(trust)
     auxiliary = verify_origin(record, tsto, events, origin_keys)
-    status, key_reasons = revoked_decision(keys.revoked_uses + (origin_keys.revoked_uses if origin_keys is not keys else []))
+    anchors, anchor_reasons, typed = None, [], False
+    if supplemented and (_anchors.selected_time(record) or any(path.startswith("evidence/") for path in files)):
+        def read_evidence(path, limit):
+            entry = files.get(path)
+            if entry is None:
+                raise FileNotFoundError(path)
+            if not isinstance(entry.get("data"), str) or len(entry["data"]) > (4 * limit + 2) // 3:
+                raise ValueError("missing or oversized evidence")
+            try:
+                data = _file_bytes(entry)
+            except Fail as error:
+                raise ValueError("invalid evidence encoding") from error
+            if len(data) > limit or "sha256:" + sha256_hex(data) != entry.get("sha256"):
+                raise ValueError("invalid evidence digest")
+            return data
+
+        anchors, anchor_reasons, paths, typed = _anchors.verify_anchors(presentation, record, events, read_evidence, anchor_trust)
+        accepted.update(paths & files.keys())
+    statements = reporter_statements(record, files)
+    accepted.update(s["path"] for s in statements)
+    ignored = [path for path in files if path not in accepted]
+    uses = keys.revoked_uses + (origin_keys.revoked_uses if origin_keys is not keys else [])
+    status, key_reasons = revoked_decision(uses, anchors["earliestIndependentTime"] if anchors else None)
     limitations = check_limitations(record)
     reporters = check_reporters(record)
     reasons = _unique(["ACTOR_ATTRIBUTION_RECORDER_ASSERTION"] + limitations)
@@ -1046,7 +1063,7 @@ def verify_package(package, trust, handlers):
         reasons.append("UNCOMMITTED_FILE")
     if auxiliary:
         reasons.append("JEP_AUXILIARY_NOT_INTERPRETED")
-    report = {"schema": REPORTS[record["schema"]], "issuer": record["identity"]["issuer"], "status": status,
+    report = {"schema": REPORT_13 if typed else REPORTS[record["schema"]], "issuer": record["identity"]["issuer"], "status": status,
               "closure": closure, "disclosures": {"disclosed": disclosed, "total": total}}
     if "limitations" in record:
         report["limitations"] = limitations
@@ -1054,7 +1071,9 @@ def verify_package(package, trust, handlers):
         report["reporters"] = reporters
     if statements:
         report["reporterStatements"] = [{k: s[k] for k in ("objectId", "reporter", "kid", "publicKey")} for s in statements]
-    report.update({"reasons": reasons + key_reasons, "ignoredFiles": ignored, "commitments": commitments})
+    if anchors:
+        report["anchors"] = anchors
+    report.update({"reasons": reasons + anchor_reasons + key_reasons, "ignoredFiles": ignored, "commitments": commitments})
     return report
 
 
@@ -1170,7 +1189,7 @@ def invalid_report(code):
             "reasons": [code if code in REASONS else "INVALID_CONFORMITY_INPUT"]}
 
 
-def verify_artifact(artifact, trust, checked_at=None, expected_status=None, handlers=None):
+def verify_artifact(artifact, trust, checked_at=None, expected_status=None, handlers=None, anchor_trust=None):
     """Verify a Conformity artifact offline and return the verification report (a dict).
 
     `artifact`: bytes as received (a Package, Status or Summary JSON document, or a compact SD-JWT presentation),
@@ -1178,7 +1197,7 @@ def verify_artifact(artifact, trust, checked_at=None, expected_status=None, hand
     `{"issuers": {"https://issuer.example": [{"id", "publicKeyPem", "status", "validFrom"?, "validUntil"?}]}}`.
     `checked_at` and `expected_status` (`issuer`, `resultId`, `headDigest`) are required for a Status.
     `handlers` names the critical extensions the caller supports (none by default).
-    Raises UnsupportedEvidence for a 1.1 Package with anchoring evidence; every other problem is an INVALID report.
+    `anchor_trust` optionally replaces the bundled TSA roots and Bitcoin checkpoints with caller-held trust.
     """
     handlers = handlers or {}
     try:
@@ -1193,7 +1212,7 @@ def verify_artifact(artifact, trust, checked_at=None, expected_status=None, hand
             raise Fail("UNSUPPORTED_CONFORMITY_ARTIFACT")
         schema = artifact.get("schema")
         if schema == PACKAGE:
-            return verify_package(artifact, trust, handlers)
+            return verify_package(artifact, trust, handlers, anchor_trust)
         if schema == SUMMARY:
             return verify_summary(artifact, trust, handlers)
         if schema == STATUS:
@@ -1204,8 +1223,6 @@ def verify_artifact(artifact, trust, checked_at=None, expected_status=None, hand
             demand(not (_leaks(artifact) or any(k in artifact for k in ("tsto", "jepEvents", "files"))), "PARTIAL_PRESENTATION_LEAKS_COMMITTED_CONTENT")
             raise Fail("INVALID_PARTIAL_PRESENTATION")
         raise Fail("UNSUPPORTED_CONFORMITY_ARTIFACT")
-    except UnsupportedEvidence:
-        raise
     except (Fail, InputError) as error:
         return invalid_report(error.code)
     except (KeyError, TypeError, AttributeError, IndexError, ValueError):
