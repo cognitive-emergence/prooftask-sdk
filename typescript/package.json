@@ -1,6 +1,6 @@
 {
   "name": "@prooftask/sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publishConfig": { "access": "public" },
   "license": "Apache-2.0",
   "description": "ProofTask Agent API client generated from the OpenAPI contract, with webhook signature verification, idempotent request IDs, pagination, typed errors and offline record verification by the published verifier.",

@@ -90,6 +90,7 @@ tests. Report problems through [ProofTask support](https://prooftask.com/support
 
 ## Changelog
 
+- **0.1.2**: agreement creation supports the optional `bitcoinTimeProof` field (default `false`). The offline verifier checks RFC 3161 evidence for individual agreement events and issued records.
 - **0.1.1**: the source is public at cognitive-emergence/prooftask-sdk, and the project's `Source` URL points there.
   Updated README and project metadata; the unit tests also run outside the ProofTask repository. No API change.
 - **0.1.0**: first release.

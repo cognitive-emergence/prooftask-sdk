@@ -1,8 +1,7 @@
 """ProofTask Agent API SDK for Python: a client generated from the OpenAPI contract, webhook signature verification,
 idempotent request IDs, pagination and typed errors. Standard library only.
 
-Offline verification of Conformity records is in the subpackage ``prooftask.conformity`` (an independent reading of
-the published specification; anchoring evidence is not implemented there, use the Node.js verifier for it)."""
+The ``prooftask.conformity`` subpackage verifies Conformity records and their packaged timestamp evidence offline."""
 from . import _generated_types as types
 from ._generated_operations import API_BASE_PATH, OPERATIONS
 from ._generated_types import API_VERSION

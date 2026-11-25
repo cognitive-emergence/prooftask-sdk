@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, Iterator, Optional
 from ._generated_operations import API_BASE_PATH, OPERATIONS, GeneratedOperations
 from .errors import ProofTaskTransportError, api_error
 
-SDK_VERSION = "0.1.1"
+SDK_VERSION = "0.1.2"
 _LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 _UUID_V4 = re.compile(r"^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$")
 
