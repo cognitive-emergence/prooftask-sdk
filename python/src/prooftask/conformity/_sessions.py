@@ -2,12 +2,60 @@
 
 import re
 
-from ._json import same
+from ._json import is_integer, same
 from .verifier import canonical_time, critical_manifest, epoch_ms, json_digest
 
 PRIVATE_CONTENT = "com.prooftask.private-content"
 _PRIVATE_FIELDS = {"schema": "prooftask.private-content/v1", "commitment": "sd-jwt-disclosure-sha256", "titles": "CLEAR"}
 _METHODS = {"EMAIL_CODE", "GOOGLE", "APPLE", "GITHUB", "WORKSPACE_SSO"}
+
+
+def _request_digest(value):
+    return json_digest({"protocol": "prooftask", "type": "buyer-confirmed-request/v1", "value": value})[7:]
+
+
+def _supplier_authorized_at(workflows, index):
+    workflow = workflows[index]
+    payload = workflow["payload"]
+    if "preAcceptance" not in payload and "preparedFrom" not in payload:
+        return None
+    opening = workflows[0]
+    origin = opening["payload"]["supplierProposal"]
+    publisher, pre = origin["publishedBy"], origin["preAcceptance"]
+    actor = workflow["actor"]
+    published_at = origin["publishedAt"]
+    if (opening["workflow_kind"] != "BUYER_COMMIT" or origin["schema"] != "prooftask.supplier-proposal/v1"
+            or not is_integer(origin["version"], minimum=1)
+            or origin["digest"] != _request_digest({k: v for k, v in origin.items() if k != "digest"})
+            or not canonical_time(published_at) or published_at > opening["recorded_at"]
+            or pre["statement"] != "ACCEPT_IF_UNCHANGED" or not canonical_time(pre["verifiedAt"]) or pre["verifiedAt"] > published_at
+            or actor["bindingMethod"] != "verified_supplier_account" or "execution" in publisher or "attribution" in publisher
+            or any(actor[k] != publisher[k] for k in ("id", "organizationId", "tenantId", "role"))
+            or not same(actor.get("sessionAuthentication"), publisher.get("sessionAuthentication"))
+            or actor["accountBinding"]["verifiedAt"] != pre["verifiedAt"]):
+        raise ValueError("ADVANCE_AUTHORIZATION_BINDING_INVALID")
+    ref = {"proposalId": origin["proposalId"], "version": origin["version"], "proposalDigest": origin["digest"]}
+    expected_binding = "urn:prooftask:proposal-pre-acceptance:%s:%s" % (ref["proposalId"], int(ref["version"]))
+    if actor["bindingReference"] != expected_binding or workflows[1]["workflow_kind"] != "SUPPLIER_REPRESENTATIVE":
+        raise ValueError("ADVANCE_AUTHORIZATION_BINDING_INVALID")
+    if "preAcceptance" in payload:
+        if (index != 2 or workflow["workflow_kind"] != "SUPPLIER_RESPONSE" or "preparedFrom" in payload
+                or payload["action"] != "ACCEPT" or actor["scope"] != "RESULT_AGREEMENT_ACCEPT"
+                or payload["reason"] != pre["reason"] or payload.get("confirmationDigest") != pre.get("confirmationDigest")
+                or not same(payload["preAcceptance"], ref) or workflow["recorded_at"] != workflows[1]["recorded_at"]):
+            raise ValueError("ADVANCE_AUTHORIZATION_BINDING_INVALID")
+    else:
+        if (index != 3 or workflow["workflow_kind"] != "SUBMIT" or not same(workflows[2]["payload"].get("preAcceptance"), ref)
+                or workflow["recorded_at"] != workflows[2]["recorded_at"]
+                or not same(actor, dict(workflows[2]["actor"], scope="DELIVERY_SUBMIT"))):
+            raise ValueError("ADVANCE_AUTHORIZATION_BINDING_INVALID")
+        prepared = payload["preparedFrom"]
+        commitment = _request_digest({"purpose": "prepared-delivery-materials/v1", "proposalId": ref["proposalId"],
+                                      "version": ref["version"], "nonce": prepared["nonce"],
+                                      "materials": {"summary": payload["summary"], "items": payload["items"]}})
+        if prepared["proposalDigest"] != ref["proposalDigest"] or commitment != pre["preparedDeliveryDigest"]:
+            raise ValueError("ADVANCE_AUTHORIZATION_BINDING_INVALID")
+    return published_at
 
 
 def check_concern_history(entry, event, record):
@@ -46,8 +94,8 @@ def session_observations(record, events):
     previous = None
     previous_time = None
     observations = []
-    for digest, event in zip(digests, events):
-        workflow = event["ext"]["com.prooftask.workflow"]
+    workflows = [event["ext"]["com.prooftask.workflow"] for event in events]
+    for index, (digest, event, workflow) in enumerate(zip(digests, events, workflows)):
         actor = workflow["actor"]
         at = workflow["recorded_at"]
         event_id = workflow["workflow_event_id"]
@@ -76,18 +124,21 @@ def session_observations(record, events):
                     or obj["recordedAt"] != at or (collection == "decisions" and obj["action"] != action)
                     or (collection == "agreements" and obj["party"] != ("SECOND_PARTY" if kind == "BUYER_COMMIT" else "FIRST_PARTY"))):
                 raise ValueError("SESSION_SOURCE_BINDING_INVALID")
+        supplier_authorized_at = _supplier_authorized_at(workflows, index)
         if "sessionAuthentication" not in actor:
             continue
         observation = actor["sessionAuthentication"]
+        session_limit = supplier_authorized_at or at
         if (not isinstance(observation, dict) or set(observation) - {"method", "authenticatedAt", "passkeyVerifiedAt"}
                 or observation.get("method") not in _METHODS or "execution" in actor or "attribution" in actor
                 or actor.get("bindingMethod") == "platform_reporter_assertion"
-                or not canonical_time(observation.get("authenticatedAt")) or observation["authenticatedAt"] > at):
+                or not canonical_time(observation.get("authenticatedAt")) or observation["authenticatedAt"] > session_limit):
             raise ValueError("INVALID_SESSION_AUTHENTICATION")
         if "passkeyVerifiedAt" in observation:
             second = observation["passkeyVerifiedAt"]
-            if not canonical_time(second) or not observation["authenticatedAt"] <= second <= at:
+            if not canonical_time(second) or not observation["authenticatedAt"] <= second <= session_limit:
                 raise ValueError("INVALID_SESSION_AUTHENTICATION")
         observations.append({"eventId": event_id, "actorId": actor["id"], "kind": workflow["workflow_kind"],
-                             "recordedAt": at, **({"action": action} if isinstance(action, str) else {}), **observation})
+                             "recordedAt": at, **({"supplierAuthorizedAt": supplier_authorized_at} if supplier_authorized_at else {}),
+                             **({"action": action} if isinstance(action, str) else {}), **observation})
     return observations

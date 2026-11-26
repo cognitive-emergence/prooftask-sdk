@@ -111,6 +111,8 @@ For a downloaded result file, `uncheckedResultFileFields` lists any accompanying
 
 The output contains the verification report and the recorded account, action, session method and timestamps for each signed observation. It can contain buyer and supplier identifiers. A missing observation contributes no row. Use the report for independent timestamp evidence and its remaining limitations. A recorded sign-in or passkey check establishes the issuer's observation of that session. A party signature on a particular decision requires separate evidence.
 
+When a supplier authorizes a proposal in advance, the corresponding session rows include `supplierAuthorizedAt`. This is the signed proposal publication time. The later `recordedAt` is when the buyer's agreement triggered the recorded response or submission. For prepared materials, the inspector recomputes the original commitment from the submitted summary, items and nonce.
+
 ### Verify a downloaded result file
 
 Run `python -m prooftask.conformity --result-file receipt.json issuer-trust.json` with the Conformity issuer keys you trust. The command verifies the signed delivery and its session evidence offline. If the agreement includes public registration, the report also checks the log's signed tree head, salted issuance commitment and Merkle inclusion proofs. A later logged status identifies its sequence. A tree head can carry an RFC 3161 timestamp. Bitcoin evidence belongs to the individually selected record.
