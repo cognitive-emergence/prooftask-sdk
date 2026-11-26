@@ -51,6 +51,7 @@ OPERATIONS: Dict[str, Dict[str, Any]] = {
     "useTemplate": {"operationId":"useTemplate","method":"POST","path":"/templates/{id}/use","basePath":"/api/agents/v1","auth":True,"pathParams":["id"],"queryParams":[],"body":"required","status":200},
     "listProjectWebhooks": {"operationId":"listProjectWebhooks","method":"GET","path":"/webhooks","basePath":"/api/agents/v1","auth":True,"pathParams":[],"queryParams":[],"body":"none","status":200},
     "createProjectWebhook": {"operationId":"createProjectWebhook","method":"POST","path":"/webhooks","basePath":"/api/agents/v1","auth":True,"pathParams":[],"queryParams":[],"body":"required","status":201},
+    "previewProjectWebhook": {"operationId":"previewProjectWebhook","method":"POST","path":"/webhooks/preview","basePath":"/api/agents/v1","auth":True,"pathParams":[],"queryParams":[],"body":"required","status":200},
     "listWebhookDeliveries": {"operationId":"listWebhookDeliveries","method":"GET","path":"/webhooks/{subscriptionId}/deliveries","basePath":"/api/agents/v1","auth":True,"pathParams":["subscriptionId"],"queryParams":["after"],"body":"none","status":200},
     "redeliverProjectEvent": {"operationId":"redeliverProjectEvent","method":"POST","path":"/webhooks/{subscriptionId}/deliveries/{deliveryId}/redeliver","basePath":"/api/agents/v1","auth":True,"pathParams":["subscriptionId","deliveryId"],"queryParams":[],"body":"required","status":200},
     "webhook_pause": {"operationId":"webhook_pause","method":"POST","path":"/webhooks/{subscriptionId}/pause","basePath":"/api/agents/v1","auth":True,"pathParams":["subscriptionId"],"queryParams":[],"body":"required","status":200},
@@ -249,6 +250,10 @@ class GeneratedOperations:
     def create_project_webhook(self, *, body: "T.WebhookCreate", request_options: Optional[Dict[str, Any]] = None) -> "T.WebhookResult":
         """POST /api/agents/v1/webhooks (createProjectWebhook)"""
         return self._call("createProjectWebhook", {"body": body}, request_options)
+
+    def preview_project_webhook(self, *, body: "T.WebhookPreviewRequest", request_options: Optional[Dict[str, Any]] = None) -> "T.WebhookPreview":
+        """POST /api/agents/v1/webhooks/preview (previewProjectWebhook)"""
+        return self._call("previewProjectWebhook", {"body": body}, request_options)
 
     def list_webhook_deliveries(self, *, subscription_id: str, after: Optional[str] = None, request_options: Optional[Dict[str, Any]] = None) -> "T.WebhookDeliveries":
         """GET /api/agents/v1/webhooks/{subscriptionId}/deliveries (listWebhookDeliveries)"""

@@ -3044,6 +3044,50 @@ class WebhookDeliveryLogItem(_WebhookDeliveryLogItemRequired, total=False):
 WebhookList = List["WebhookSubscription"]
 
 
+class WebhookPreview(TypedDict):
+    body: "Union[WebhookPreviewEnvelope, None]"
+    eventType: "Literal[\"agreement.confirmed\", \"delivery.submitted\", \"changes.requested\", \"acceptance.decided\", \"record.changed\", \"check.completed\", \"check.failed\", \"check.pending_human\", \"record.evidence_updated\"]"
+    projectId: "str"
+    target: "str"
+
+
+class _WebhookPreviewEnvelopeRequired(TypedDict):
+    agreementDigest: "str"
+    agreementVersion: "int"
+    currentNextAction: "NextAction"
+    headEventHash: "str"
+    id: "str"
+    occurredAt: "str"
+    projectId: "str"
+    reviewId: "Union[str, None]"
+    schema: "Literal[\"prooftask.project-event/v1\"]"
+    sequence: "int"
+    state: "ProjectState"
+    submissionId: "Union[str, None]"
+    type: "Literal[\"agreement.confirmed\", \"delivery.submitted\", \"changes.requested\", \"acceptance.decided\", \"record.changed\", \"check.completed\", \"check.failed\", \"check.pending_human\", \"record.evidence_updated\"]"
+
+class WebhookPreviewEnvelope(_WebhookPreviewEnvelopeRequired, total=False):
+    check: "WebhookPreviewEnvelopeCheck"
+    evidence: "WebhookPreviewEnvelopeEvidence"
+
+
+class WebhookPreviewEnvelopeCheck(TypedDict):
+    digest: "str"
+    id: "str"
+    outcomes: "List[Literal[\"PASS\", \"FAIL\", \"INSUFFICIENT_EVIDENCE\", \"PENDING_HUMAN\", \"EXECUTION_FAILED\"]]"
+
+
+class WebhookPreviewEnvelopeEvidence(TypedDict):
+    change: "Literal[\"TIME_STAMP_COLLECTED\", \"TIME_STAMP_RENEWED\", \"BITCOIN_ATTESTED\", \"BITCOIN_HEADERS_LINKED\"]"
+    recordDigest: "str"
+
+
+class WebhookPreviewRequest(TypedDict):
+    eventType: "Literal[\"agreement.confirmed\", \"delivery.submitted\", \"changes.requested\", \"acceptance.decided\", \"record.changed\", \"check.completed\", \"check.failed\", \"check.pending_human\", \"record.evidence_updated\"]"
+    projectId: "str"
+    target: "str"
+
+
 class WebhookRenew(TypedDict):
     confirmed: "Literal[True]"
     expectedExpiresAt: "str"

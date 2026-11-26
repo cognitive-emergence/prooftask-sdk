@@ -2332,6 +2332,44 @@ export type WebhookDelivery = {
 
 export type WebhookList = Array<WebhookSubscription>;
 
+export type WebhookPreview = {
+  body: (WebhookPreviewEnvelope | null);
+  eventType: "agreement.confirmed" | "delivery.submitted" | "changes.requested" | "acceptance.decided" | "record.changed" | "check.completed" | "check.failed" | "check.pending_human" | "record.evidence_updated";
+  projectId: string;
+  target: string;
+};
+
+export type WebhookPreviewEnvelope = {
+  agreementDigest: string;
+  agreementVersion: number;
+  check?: {
+    digest: string;
+    id: string;
+    outcomes: Array<"PASS" | "FAIL" | "INSUFFICIENT_EVIDENCE" | "PENDING_HUMAN" | "EXECUTION_FAILED">;
+  };
+  currentNextAction: NextAction;
+  evidence?: {
+    change: "TIME_STAMP_COLLECTED" | "TIME_STAMP_RENEWED" | "BITCOIN_ATTESTED" | "BITCOIN_HEADERS_LINKED";
+    recordDigest: string;
+  };
+  headEventHash: string;
+  id: string;
+  occurredAt: string;
+  projectId: string;
+  reviewId: (string | null);
+  schema: "prooftask.project-event/v1";
+  sequence: number;
+  state: ProjectState;
+  submissionId: (string | null);
+  type: "agreement.confirmed" | "delivery.submitted" | "changes.requested" | "acceptance.decided" | "record.changed" | "check.completed" | "check.failed" | "check.pending_human" | "record.evidence_updated";
+};
+
+export type WebhookPreviewRequest = {
+  eventType: "agreement.confirmed" | "delivery.submitted" | "changes.requested" | "acceptance.decided" | "record.changed" | "check.completed" | "check.failed" | "check.pending_human" | "record.evidence_updated";
+  projectId: string;
+  target: string;
+};
+
 export type WebhookRenew = {
   confirmed: true;
   expectedExpiresAt: string;

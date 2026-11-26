@@ -51,6 +51,7 @@ export const OPERATIONS = {
   useTemplate: {"operationId":"useTemplate","method":"POST","path":"/templates/{id}/use","basePath":"/api/agents/v1","auth":true,"pathParams":["id"],"queryParams":[],"body":"required","status":200},
   listProjectWebhooks: {"operationId":"listProjectWebhooks","method":"GET","path":"/webhooks","basePath":"/api/agents/v1","auth":true,"pathParams":[],"queryParams":[],"body":"none","status":200},
   createProjectWebhook: {"operationId":"createProjectWebhook","method":"POST","path":"/webhooks","basePath":"/api/agents/v1","auth":true,"pathParams":[],"queryParams":[],"body":"required","status":201},
+  previewProjectWebhook: {"operationId":"previewProjectWebhook","method":"POST","path":"/webhooks/preview","basePath":"/api/agents/v1","auth":true,"pathParams":[],"queryParams":[],"body":"required","status":200},
   listWebhookDeliveries: {"operationId":"listWebhookDeliveries","method":"GET","path":"/webhooks/{subscriptionId}/deliveries","basePath":"/api/agents/v1","auth":true,"pathParams":["subscriptionId"],"queryParams":["after"],"body":"none","status":200},
   redeliverProjectEvent: {"operationId":"redeliverProjectEvent","method":"POST","path":"/webhooks/{subscriptionId}/deliveries/{deliveryId}/redeliver","basePath":"/api/agents/v1","auth":true,"pathParams":["subscriptionId","deliveryId"],"queryParams":[],"body":"required","status":200},
   webhook_pause: {"operationId":"webhook_pause","method":"POST","path":"/webhooks/{subscriptionId}/pause","basePath":"/api/agents/v1","auth":true,"pathParams":["subscriptionId"],"queryParams":[],"body":"required","status":200},
@@ -110,6 +111,7 @@ export interface OperationArgs {
   useTemplate: { id: string; body: T.TemplateUse; };
   listProjectWebhooks: {  };
   createProjectWebhook: { body: T.WebhookCreate; };
+  previewProjectWebhook: { body: T.WebhookPreviewRequest; };
   listWebhookDeliveries: { subscriptionId: string; after?: string; };
   redeliverProjectEvent: { subscriptionId: string; deliveryId: string; body: T.EmptyRequest; };
   webhook_pause: { subscriptionId: string; body: T.EmptyRequest; };
@@ -169,6 +171,7 @@ export interface OperationResults {
   useTemplate: T.TemplateUseResult;
   listProjectWebhooks: T.WebhookList;
   createProjectWebhook: T.WebhookResult;
+  previewProjectWebhook: T.WebhookPreview;
   listWebhookDeliveries: T.WebhookDeliveries;
   redeliverProjectEvent: T.WebhookReplay;
   webhook_pause: T.WebhookResult;
@@ -405,6 +408,11 @@ export abstract class GeneratedOperations {
   /** POST /api/agents/v1/webhooks (createProjectWebhook) */
   createProjectWebhook(args: OperationArgs["createProjectWebhook"], options?: RequestOptions): Promise<OperationResults["createProjectWebhook"]> {
     return this.call("createProjectWebhook", args, options);
+  }
+
+  /** POST /api/agents/v1/webhooks/preview (previewProjectWebhook) */
+  previewProjectWebhook(args: OperationArgs["previewProjectWebhook"], options?: RequestOptions): Promise<OperationResults["previewProjectWebhook"]> {
+    return this.call("previewProjectWebhook", args, options);
   }
 
   /** GET /api/agents/v1/webhooks/{subscriptionId}/deliveries (listWebhookDeliveries) */
