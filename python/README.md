@@ -35,7 +35,7 @@ use the system `openssl dgst` command. RSA timestamps and Bitcoin proofs use Pyt
 Typed event evidence identifies each signed event and checks its chain prefix. Each event reports its recorder time
 separately from the independent upper bound, which includes the token's accuracy and requires revocation coverage.
 The assurance label describes the service declared by the package supplier. Use the [Node.js verifier](https://prooftask.com/developers/verify-conformity.mjs)
-for the ProofTask product record wrapper (`prooftask-result-record-*.json`, with the product trust bundle).
+to check the product status statement in the ProofTask result record wrapper (`prooftask-result-record-*.json`, with the product trust bundle).
 
 ## Quickstart
 
@@ -98,3 +98,21 @@ tests. Report problems through [ProofTask support](https://prooftask.com/support
 ## License
 
 Apache License, Version 2.0. See [`LICENSE`](LICENSE). Only the SDKs and the offline verifier are open source; the ProofTask service is proprietary.
+
+### Inspect session evidence in a private delivery record
+
+With the JSON downloaded from the delivery page (or its full native Package) and independently obtained Conformity issuer keys, run:
+
+```sh
+python -m prooftask.conformity --sessions receipt.json issuer-trust.json
+```
+
+For a downloaded result file, `uncheckedResultFileFields` lists any accompanying registration proof, status statement or private openings outside this session inspection.
+
+The output contains the verification report and the recorded account, action, session method and timestamps for each signed observation. It can contain buyer and supplier identifiers. A missing observation contributes no row. Use the report for independent timestamp evidence and its remaining limitations. A recorded sign-in or passkey check establishes the issuer's observation of that session. A party signature on a particular decision requires separate evidence.
+
+### Verify a downloaded result file
+
+Run `python -m prooftask.conformity --result-file receipt.json issuer-trust.json` with the Conformity issuer keys you trust. The command verifies the signed delivery and its session evidence offline. If the agreement includes public registration, the report also checks the log's signed tree head, salted issuance commitment and Merkle inclusion proofs. A later logged status identifies its sequence. A tree head can carry an RFC 3161 timestamp. Bitcoin evidence belongs to the individually selected record.
+
+Read `registration.status` for the registration outcome and `uncheckedResultFileFields` for any accompanying status statement or private openings outside this inspection. A verified registration describes the supplied tree head at its recorded time. Exit code 1 signals a failed check. Exit code 3 signals an agreed, issued record whose registration is pending or missing. The signed delivery decision remains available in the report.

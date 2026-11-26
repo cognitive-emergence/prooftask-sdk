@@ -834,7 +834,7 @@ def _references_tsto(event, tsto):
                                                  "id": tsto["id"], "digest": tsto["integrity"]["value"]})
 
 
-def verify_origin(record, tsto, events, keys):
+def verify_origin(record, tsto, events, keys, *, native_sessions=False):
     """TSTO and JEP evidence of a full Package (conformity-record.md "Visible evidence", conformity-package.md)."""
     spec = record["specification"]
     integrity = tsto.get("integrity") if isinstance(tsto, dict) else None
@@ -862,6 +862,11 @@ def verify_origin(record, tsto, events, keys):
         event = by_digest.get(h["eventDigest"])
         demand(event is not None and _references_tsto(event, tsto), "JEP_ORIGIN_EVIDENCE_INVALID")
         obj = agreements.get(h["objectId"]) or deliveries.get(h["objectId"]) or decisions.get(h["objectId"])
+        if native_sessions and h["kind"] == "https://prooftask.com/ns/events/confirmation-state":
+            from ._sessions import check_concern_history
+            check_concern_history(h, event, record)
+            accounted[h["eventDigest"]] = h["recordedAt"]
+            continue
         binding = event["ext"].get("org.humanjudgment.record-binding")
         demand(isinstance(binding, dict) and binding.get("objectId") == h["objectId"]
                and binding.get("specificationDigest") == spec["reference"]["digest"] and event["id"] == h["id"]
@@ -993,7 +998,7 @@ def reporter_statements(record, files):
     return found
 
 
-def verify_package(package, trust, handlers, anchor_trust=None):
+def verify_package(package, trust, handlers, anchor_trust=None, *, inspect_sessions=False, result_file=None):
     demand(isinstance(package, dict) and set(package) == {"schema", "files"} and isinstance(package["files"], list)
            and len(package["files"]) <= 10000, "INVALID_PACKAGE")
     files = {}
@@ -1030,7 +1035,7 @@ def verify_package(package, trust, handlers, anchor_trust=None):
         check(entry)
     tsto, events = parse_bytes(tsto_bytes), [parse_bytes(b) for b in event_bytes]
     origin_keys = keys if supplemented else KeyPolicy(trust)
-    auxiliary = verify_origin(record, tsto, events, origin_keys)
+    auxiliary = verify_origin(record, tsto, events, origin_keys, native_sessions=inspect_sessions)
     anchors, anchor_reasons, typed = None, [], False
     if supplemented and (_anchors.selected_time(record) or any(path.startswith("evidence/") for path in files)):
         def read_evidence(path, limit):
@@ -1074,7 +1079,70 @@ def verify_package(package, trust, handlers, anchor_trust=None):
     if anchors:
         report["anchors"] = anchors
     report.update({"reasons": reasons + anchor_reasons + key_reasons, "ignoredFiles": ignored, "commitments": commitments})
+    if inspect_sessions:
+        demand(status == "VERIFIED_WITH_LIMITATIONS", "PACKAGE_VERIFICATION_REQUIRED")
+        from ._sessions import session_observations
+        details = {"verification": report, "sessionObservations": session_observations(record, events)}
+        if result_file is not None:
+            from ._registration import registration_report
+            checked = registration_report(record, presentation, result_file.get("registration"), "registration" in result_file,
+                                          trust, anchor_trust)
+            if checked is not None:
+                snapshot = record["extensions"].get("com.prooftask.snapshot")
+                issuance = snapshot.get("resultRecord") if isinstance(snapshot, dict) else None
+                details["registrationExpected"] = checked["agreed"] and isinstance(issuance, dict) and issuance.get("state") == "ISSUED"
+                details["registration"] = checked
+        return details
     return report
+
+
+def inspect_record_sessions(package_bytes, trust, *, anchor_trust=None):
+    """Verify the native Package from a delivery download and return its private session observations.
+
+    The timeline contains account identifiers. Keep it with the private record. Each observation is
+    asserted by the issuer. The account holder's signature and independent timestamps have separate
+    evidence. An unverified artifact or inconsistent observation raises ValueError.
+    """
+    return _inspect_delivery(package_bytes, trust, anchor_trust, check_registration=False)
+
+
+def inspect_result_file(file_bytes, trust, *, anchor_trust=None):
+    """Verify the downloaded file's signed Package, session timeline and agreed public registration offline.
+
+    Issuer keys and optional timestamp roots come from the caller. Read uncheckedResultFileFields for
+    supplementary evidence outside this inspection. A registration failure is separate from the delivery decision.
+    """
+    return _inspect_delivery(file_bytes, trust, anchor_trust, check_registration=True)
+
+
+def _inspect_delivery(package_bytes, trust, anchor_trust, *, check_registration):
+    if not isinstance(package_bytes, bytes):
+        raise ValueError("Supply the original Package or result file bytes")
+    try:
+        package = parse_bytes(package_bytes, 17 * 1024 * 1024)
+        result_file = isinstance(package, dict) and package.get("schema") == "prooftask.result-review/v1"
+        if check_registration and not result_file:
+            raise ValueError("RESULT_FILE_REQUIRED")
+        wrapper = package if result_file and check_registration else None
+        if result_file:
+            attachments = ("status", "registration", "privateContentOpenings")
+            if set(package) - {"schema", "record", "trust", *attachments}:
+                raise ValueError("UNKNOWN_RESULT_FILE_FIELD")
+            unchecked = [field for field in attachments if field in package
+                         and not (check_registration and field == "registration")]
+            # Trust is supplied separately by the holder. Only the signed inner record supplies account observations.
+            package = package.get("record")
+        if not isinstance(package, dict) or package.get("schema") != PACKAGE:
+            raise ValueError("FULL_NATIVE_PACKAGE_REQUIRED")
+        from ._sessions import PRIVATE_CONTENT
+        details = verify_package(package, trust, {PRIVATE_CONTENT}, anchor_trust, inspect_sessions=True, result_file=wrapper)
+        if result_file:
+            details["uncheckedResultFileFields"] = unchecked
+        return details
+    except (Fail, InputError) as error:
+        raise ValueError(error.code) from error
+    except (KeyError, TypeError, AttributeError, IndexError) as error:
+        raise ValueError("SESSION_SOURCE_BINDING_INVALID") from error
 
 
 def verify_presentation(presentation, trust, handlers):
