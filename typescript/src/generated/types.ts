@@ -663,6 +663,11 @@ export type CreateProject = {
     meaning: "HISTORICAL_CONTEXT_ONLY";
     schema: "prooftask.agreement-history-reference/v1";
   };
+  jurisdictionProfile?: {
+    digest: "sha256:19070c25b90aa00ab5125a09920780f150734d6058f79ec826596aa6dd920c99";
+    id: "urn:prooftask:jurisdiction-profile:generic";
+    version: "1";
+  };
   legalContext: LegalContext;
   materialPolicy: "FILE_DIGESTS";
   providerName: string;
@@ -1282,6 +1287,11 @@ export type ProposalTerms = {
     digest: string;
     meaning: "HISTORICAL_CONTEXT_ONLY";
     schema: "prooftask.agreement-history-reference/v1";
+  };
+  jurisdictionProfile?: {
+    digest: "sha256:19070c25b90aa00ab5125a09920780f150734d6058f79ec826596aa6dd920c99";
+    id: "urn:prooftask:jurisdiction-profile:generic";
+    version: "1";
   };
   legalContext: LegalContext;
   materialPolicy: "FILE_DIGESTS";

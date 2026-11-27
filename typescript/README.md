@@ -88,6 +88,8 @@ verifier and a temporary directory with your files. It makes no network requests
 accepted only when they match the ProofTask keys pinned in the verifier. Read `report.reasons`: they name what the check
 did not prove.
 
+For a downloaded result record, `outcome` and the exit code describe the signed delivery history. If your workflow requires public registration, also require `report.registration?.status === 'VERIFIED'` and inspect its binding and timestamp status. A pending or failed registration can accompany a verified delivery history.
+
 ## Development
 
 Source: [cognitive-emergence/prooftask-sdk](https://github.com/cognitive-emergence/prooftask-sdk/tree/main/typescript),
@@ -97,6 +99,8 @@ Report problems through [ProofTask support](https://prooftask.com/support).
 
 ## Changelog
 
+- **0.1.4** Offline verification reports the public rules fixed by each agreement and the identity evidence recorded for each action. A selective presentation identifies the original events it withholds.
+- **0.1.3** The bundled offline verifier checks signed session observations and public registration attached to downloaded result records. Use `previewProjectWebhook` to see what an authorized project callback would disclose.
 - **0.1.2**: agreement creation supports the optional `bitcoinTimeProof` field (default `false`). The offline verifier checks RFC 3161 evidence for individual agreement events and issued records.
 - **0.1.1**: the source is public at cognitive-emergence/prooftask-sdk, and the package's `repository` points there.
   Updated README and package metadata. No API change.

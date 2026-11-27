@@ -1,9 +1,9 @@
-"""python -m prooftask.conformity [--sessions | --result-file] ARTIFACT TRUST [OPTIONS.json]
+"""python -m prooftask.conformity [--sessions | --result-file] ARTIFACT TRUST [OPTIONS.json] [--openings FILE]
 
 Prints the verification report as JSON. Exit status: 0 verified or partial disclosure (read the reasons),
 1 INVALID, 3 INDETERMINATE, 2 usage error.
 Use --sessions on a downloaded result record or full native Package for its private issuer-observed session timeline.
-Use --result-file to also verify public registration with independent issuer keys.
+Use --result-file to also verify public registration and optional private field openings. A separate --openings file overrides embedded openings.
 OPTIONS.json may supply independent "anchorTrust" for a Package. A Status statement requires
 "checkedAt" (canonical UTC) and "expectedStatus" {issuer, resultId, headDigest}. This is the verifier command contract of conformance/conformity-1.
 """
@@ -29,10 +29,14 @@ def main(argv):
     reader = readers.get(argv[0]) if argv else None
     if reader:
         argv = argv[1:]
+    openings_path = None
+    if reader is inspect_result_file and len(argv) >= 4 and argv[-2] == "--openings":
+        openings_path, argv = argv[-1], argv[:-2]
     if len(argv) not in (2, 3) or any(a.startswith("-") for a in argv):
         sys.stderr.write(__doc__)
         return 2
     try:
+        openings = _read(openings_path, 8 * 1024 * 1024) if openings_path is not None else None
         artifact, trust = _read(argv[0], LIMIT), parse_bytes(_read(argv[1], 1024 * 1024), 1024 * 1024)
         options = parse_bytes(_read(argv[2], 256 * 1024)) if len(argv) == 3 else {}
     except (OSError, ValueError, InputError) as error:
@@ -43,11 +47,15 @@ def main(argv):
         return 2
     if reader:
         try:
-            details = reader(artifact, trust, anchor_trust=options.get("anchorTrust"))
+            extra = {"openings_bytes": openings} if openings is not None else {}
+            details = reader(artifact, trust, anchor_trust=options.get("anchorTrust"), **extra)
         except ValueError as error:
             sys.stderr.write("Cannot inspect the signed delivery record: %s\n" % error)
             return 1
         sys.stdout.write(json.dumps(details, indent=2, ensure_ascii=False) + "\n")
+        private = details.get("privateContent", {})
+        if private.get("reason") or private.get("mismatched"):
+            return 1
         registration = details.get("registration", {})
         if registration.get("status") == "FAILED" or registration.get("treeHeadTime", {}).get("status") == "FAILED":
             return 1

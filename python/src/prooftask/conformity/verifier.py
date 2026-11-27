@@ -510,6 +510,41 @@ def check_limitations(record):
     return list(codes)
 
 
+def operation_attributions(record, with_events):
+    actions = [(obj["id"], "AGREEMENT", obj) for obj in record["agreements"]]
+    actions.extend((obj["reference"]["id"], "EVALUATION" if obj.get("purpose") == "EVALUATION" else kind, obj) for kind, objects in
+                   (("DELIVERY", record["deliveries"]), ("DECISION", record["decisions"])) for obj in objects)
+    if not any(obj["actor"].get("attribution", {}).get("evidenceRef") for _, _, obj in actions):
+        return {}
+    pending = {key: (kind, obj) for key, kind, obj in actions}
+    demand(len(pending) == len(actions), "INVALID_ACTOR_ATTRIBUTION")
+    rows = []
+    for event in record["history"]:
+        if event["kind"] not in {"AGREEMENT", "DELIVERY", "DECISION", "EVALUATION"}:
+            continue
+        linked = pending.pop(event["objectId"], None)
+        demand(linked is not None, "INVALID_ACTOR_ATTRIBUTION")
+        kind, obj = linked
+        demand(kind == event["kind"] and obj["recordedAt"] == event["recordedAt"]
+               and obj["eventDigest"] == event["eventDigest"], "INVALID_ACTOR_ATTRIBUTION")
+        actor = obj["actor"]
+        claim = actor.get("attribution", {})
+        reporter = claim.get("basis") == "REPORTER_ASSERTION"
+        if "evidenceRef" in claim:
+            demand(claim["evidenceRef"] == event["objectId"] and ("stepUp" not in claim or "sessionMethod" in claim),
+                   "INVALID_ACTOR_ATTRIBUTION")
+        rows.append({"objectId": event["objectId"], "actorId": actor["id"], "kind": event["kind"],
+                     "recordedAt": event["recordedAt"], "declaredBy": claim.get("reporter", record["identity"]["issuer"]),
+                     "basis": claim.get("basis", "RECORDER_ASSERTION"),
+                     "bindingMethod": claim.get("bindingMethod", "REPORTER" if reporter else "UNSPECIFIED"),
+                     "assurance": claim.get("assurance", "REPORTED_BY_PLATFORM" if reporter else "ASSERTION_ONLY"),
+                     "evidenceRef": event["objectId"], "eventDigest": event["eventDigest"],
+                     "evidenceStatus": "SIGNED_EVENT_CHECKED" if with_events else "SIGNED_EVENT_NOT_INCLUDED",
+                     **{k:claim[k] for k in ("sessionMethod","stepUp","delegatedAction") if k in claim}})
+    demand(not pending, "INVALID_ACTOR_ATTRIBUTION")
+    return {"actorEvidence": rows}
+
+
 def check_reporters(record):
     """The distinct reporter origins a record names, ascending by UTF-16 code units (conformity-verification-1.3.md).
     Each is an HTTPS origin other than the issuer, and the record declares the reporter limitation exactly when it names one.
@@ -517,7 +552,7 @@ def check_reporters(record):
     reporters = []
     for row in record["agreements"] + record["deliveries"] + record["decisions"]:
         attribution = row["actor"].get("attribution") if isinstance(row.get("actor"), dict) else None
-        if attribution is None:
+        if not attribution or attribution["basis"] != "REPORTER_ASSERTION":
             continue
         try:
             issuer_did(attribution["reporter"])
@@ -967,7 +1002,7 @@ def reporter_statements(record, files):
     attributed = {}
 
     def add(object_id, actor):
-        if isinstance(actor, dict) and "attribution" in actor:
+        if isinstance(actor, dict) and actor.get("attribution", {}).get("basis") == "REPORTER_ASSERTION":
             digests = {i.get("value") for i in actor.get("identifiers", []) if isinstance(i, dict) and i.get("scheme") == REPORTER_STATEMENT_SCHEME}
             attributed[object_id] = (actor["attribution"]["reporter"], digests)
     for o in record["agreements"]:
@@ -1056,6 +1091,13 @@ def verify_package(package, trust, handlers, anchor_trust=None, *, inspect_sessi
         accepted.update(paths & files.keys())
     statements = reporter_statements(record, files)
     accepted.update(s["path"] for s in statements)
+    reference = record["specification"].get("legalContext", {}).get("jurisdictionProfile")
+    profile_path = "profiles/jurisdiction.json"
+    profile = None
+    if reference:
+        profile = jurisdiction_profile(reference, files.get(profile_path))
+        if profile_path in files:
+            accepted.add(profile_path)
     ignored = [path for path in files if path not in accepted]
     uses = keys.revoked_uses + (origin_keys.revoked_uses if origin_keys is not keys else [])
     status, key_reasons = revoked_decision(uses, anchors["earliestIndependentTime"] if anchors else None)
@@ -1074,6 +1116,9 @@ def verify_package(package, trust, handlers, anchor_trust=None, *, inspect_sessi
         report["limitations"] = limitations
     if reporters:
         report["reporters"] = reporters
+    report.update(operation_attributions(record, True))
+    if profile:
+        report["jurisdictionProfile"] = profile
     if statements:
         report["reporterStatements"] = [{k: s[k] for k in ("objectId", "reporter", "kid", "publicKey")} for s in statements]
     if anchors:
@@ -1082,8 +1127,15 @@ def verify_package(package, trust, handlers, anchor_trust=None, *, inspect_sessi
     if inspect_sessions:
         demand(status == "VERIFIED_WITH_LIMITATIONS", "PACKAGE_VERIFICATION_REQUIRED")
         from ._sessions import session_observations
-        details = {"verification": report, "sessionObservations": session_observations(record, events)}
+        operations = [] if result_file is not None else None
+        details = {"verification": report, "sessionObservations": session_observations(record, events, operations)}
+        if operations:
+            details["operationEvidence"] = operations
         if result_file is not None:
+            from ._sessions import PRIVATE_CONTENT
+            if PRIVATE_CONTENT in record["extensions"] or "privateContentOpenings" in result_file:
+                from ._private_content import opening_report
+                details["privateContent"] = opening_report(record, tsto, events, result_file)
             from ._registration import registration_report
             checked = registration_report(record, presentation, result_file.get("registration"), "registration" in result_file,
                                           trust, anchor_trust)
@@ -1103,33 +1155,40 @@ def inspect_record_sessions(package_bytes, trust, *, anchor_trust=None):
     asserted by the issuer. The account holder's signature and independent timestamps have separate
     evidence. An unverified artifact or inconsistent observation raises ValueError.
     """
-    return _inspect_delivery(package_bytes, trust, anchor_trust, check_registration=False)
+    return _inspect_delivery(package_bytes, trust, anchor_trust, check_result_file=False)
 
 
-def inspect_result_file(file_bytes, trust, *, anchor_trust=None):
-    """Verify the downloaded file's signed Package, session timeline and agreed public registration offline.
+def inspect_result_file(file_bytes, trust, *, anchor_trust=None, openings_bytes=None):
+    """Verify the downloaded file's signed Package, session timeline, public registration and selected private fields offline.
 
     Issuer keys and optional timestamp roots come from the caller. Read uncheckedResultFileFields for
-    supplementary evidence outside this inspection. A registration failure is separate from the delivery decision.
+    supplementary evidence outside this inspection. A separate openings file takes precedence over embedded openings.
+    Only counts are returned for private fields. Their verification is separate from the delivery decision.
     """
-    return _inspect_delivery(file_bytes, trust, anchor_trust, check_registration=True)
+    return _inspect_delivery(file_bytes, trust, anchor_trust, check_result_file=True, openings_bytes=openings_bytes)
 
 
-def _inspect_delivery(package_bytes, trust, anchor_trust, *, check_registration):
+def _inspect_delivery(package_bytes, trust, anchor_trust, *, check_result_file, openings_bytes=None):
     if not isinstance(package_bytes, bytes):
         raise ValueError("Supply the original Package or result file bytes")
     try:
         package = parse_bytes(package_bytes, 17 * 1024 * 1024)
         result_file = isinstance(package, dict) and package.get("schema") == "prooftask.result-review/v1"
-        if check_registration and not result_file:
+        if check_result_file and not result_file:
             raise ValueError("RESULT_FILE_REQUIRED")
-        wrapper = package if result_file and check_registration else None
+        wrapper = package if result_file and check_result_file else None
+        if openings_bytes is not None:
+            if not isinstance(openings_bytes, bytes):
+                raise ValueError("Supply the original private openings file bytes")
+            wrapper = {**package, "privateContentOpenings": parse_bytes(openings_bytes, 8 * 1024 * 1024)}
         if result_file:
             attachments = ("status", "registration", "privateContentOpenings")
             if set(package) - {"schema", "record", "trust", *attachments}:
                 raise ValueError("UNKNOWN_RESULT_FILE_FIELD")
-            unchecked = [field for field in attachments if field in package
-                         and not (check_registration and field == "registration")]
+            checked = {"registration", "privateContentOpenings"} if check_result_file else set()
+            if openings_bytes is not None:
+                checked.discard("privateContentOpenings")
+            unchecked = [field for field in attachments if field in package and field not in checked]
             # Trust is supplied separately by the holder. Only the signed inner record supplies account observations.
             package = package.get("record")
         if not isinstance(package, dict) or package.get("schema") != PACKAGE:
@@ -1138,11 +1197,30 @@ def _inspect_delivery(package_bytes, trust, anchor_trust, *, check_registration)
         details = verify_package(package, trust, {PRIVATE_CONTENT}, anchor_trust, inspect_sessions=True, result_file=wrapper)
         if result_file:
             details["uncheckedResultFileFields"] = unchecked
+            if check_result_file and "privateContentOpenings" in wrapper:
+                details["privateContentSource"] = "SUPPLIED_FILE" if openings_bytes is not None else "INCLUDED_IN_RECORD"
         return details
     except (Fail, InputError) as error:
         raise ValueError(error.code) from error
     except (KeyError, TypeError, AttributeError, IndexError) as error:
         raise ValueError("SESSION_SOURCE_BINDING_INVALID") from error
+
+
+def jurisdiction_profile(reference, entry=None):
+    if entry is None:
+        return {**reference, "status": "REFERENCE_ONLY"}
+    reason = "JURISDICTION_PROFILE_MISMATCH"
+    demand(entry.get("mediaType") == "application/json" and isinstance(entry.get("data"), str)
+           and len(entry["data"]) <= (65536 * 4 + 2) // 3, reason)
+    try:
+        data = _file_bytes(entry)
+        document = parse_bytes(data, max_bytes=65536)
+    except (Fail, InputError) as error:
+        raise Fail(reason) from error
+    demand("sha256:" + sha256_hex(data) == entry.get("sha256"), reason)
+    demand(isinstance(document, dict) and document.get("id") == reference["id"]
+           and document.get("version") == reference["version"] and json_digest(document) == reference["digest"], reason)
+    return {**reference, "status": "VERIFIED"}
 
 
 def verify_presentation(presentation, trust, handlers):
@@ -1161,6 +1239,10 @@ def verify_presentation(presentation, trust, handlers):
         report["limitations"] = limitations
     if reporters:
         report["reporters"] = reporters
+    reference = record["specification"].get("legalContext", {}).get("jurisdictionProfile")
+    if reference:
+        report["jurisdictionProfile"] = jurisdiction_profile(reference)
+    report.update(operation_attributions(record, False))
     report["reasons"] = _unique(["PARTIAL_DISCLOSURE", "JEP_ORIGIN_EVIDENCE_NOT_INCLUDED", "ACTOR_ATTRIBUTION_RECORDER_ASSERTION"] + limitations + key_reasons)
     report["commitments"] = record["commitments"]
     return report

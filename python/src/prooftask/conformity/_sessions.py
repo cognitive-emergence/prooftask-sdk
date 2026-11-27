@@ -70,7 +70,27 @@ def check_concern_history(entry, event, record):
         raise ValueError("SESSION_SOURCE_BINDING_INVALID")
 
 
-def session_observations(record, events):
+def _action_attribution(actor, ref):
+    if "attribution" in actor:
+        return {**actor["attribution"], "bindingMethod":"REPORTER", "assurance":"REPORTED_BY_PLATFORM", "evidenceRef":ref}
+    session = actor.get("sessionAuthentication", {})
+    if actor.get("execution"):
+        method, assurance = "DELEGATED_AGENT", "DELEGATION_RECORDED"
+    elif actor["bindingMethod"] == "verified_invited_recipient":
+        method, assurance = "INVITED_MAILBOX", "MAILBOX_ACCESS_OBSERVED"
+    elif session:
+        method, assurance = "AUTHENTICATED_SESSION", "SESSION_AUTHENTICATION_OBSERVED"
+    elif actor["bindingMethod"] in {"verified_supplier_account", "email_verified_self_declared"}:
+        method, assurance = "ACCOUNT_ASSOCIATION", "ACCOUNT_ASSOCIATION_RECORDED"
+    else:
+        method, assurance = "API_CREDENTIAL", "CREDENTIAL_USE_RECORDED"
+    return {"basis":"ISSUER_OBSERVATION","bindingMethod":method,"assurance":assurance,"evidenceRef":ref,
+            **({"delegatedAction":actor["execution"]["action"]} if actor.get("execution") else {}),
+            **({"sessionMethod":session["method"]} if session else {}),
+            **({"stepUp":"PASSKEY"} if "passkeyVerifiedAt" in session else {})}
+
+
+def session_observations(record, events, operations=None):
     """Called only after full package verification; returns no partial list on a failed binding."""
     source = record["extensions"].get("com.prooftask.source")
     spec = record["specification"]["extensions"]
@@ -120,11 +140,22 @@ def session_observations(record, events):
             raise ValueError("SESSION_SOURCE_BINDING_INVALID")
         if obj is not None:
             signed = obj["actor"]
+            if spec.get("com.prooftask.record-revision") == 2 and not same(signed.get("attribution"), _action_attribution(actor, event["id"])):
+                raise ValueError("SESSION_SOURCE_BINDING_INVALID")
             if (signed["id"] != who or not same(signed["extensions"].get("com.prooftask.actor"), actor)
                     or obj["recordedAt"] != at or (collection == "decisions" and obj["action"] != action)
                     or (collection == "agreements" and obj["party"] != ("SECOND_PARTY" if kind == "BUYER_COMMIT" else "FIRST_PARTY"))):
                 raise ValueError("SESSION_SOURCE_BINDING_INVALID")
         supplier_authorized_at = _supplier_authorized_at(workflows, index)
+        if operations is not None and spec.get("com.prooftask.record-revision") == 2:
+            claim = _action_attribution(actor, event["id"])
+            session = actor.get("sessionAuthentication", {})
+            parties = {agreement["buyer"]["id"]: "BUYER", agreement["provider"]["id"]: "SUPPLIER"}
+            party = parties.get(actor["organizationId"])
+            operations.append({**({"party": party} if party else {}), "eventId":event_id,"actorId":who,"kind":kind,"declaredBy":claim.get("reporter",record["identity"]["issuer"]),
+                               "recordedAt":at,"eventDigest":digest,**claim,
+                               **{k:session[k] for k in ("authenticatedAt","passkeyVerifiedAt") if k in session},
+                               **({"supplierAuthorizedAt":supplier_authorized_at} if supplier_authorized_at else {})})
         if "sessionAuthentication" not in actor:
             continue
         observation = actor["sessionAuthentication"]

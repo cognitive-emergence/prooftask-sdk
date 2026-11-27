@@ -1,0 +1,16 @@
+{
+  "schema": "prooftask.operator-issuers/v1",
+  "operator": "ProofTask",
+  "channels": [
+    "https://github.com/cognitive-emergence/prooftask-sdk/blob/main/verifiers/operator-issuers.json",
+    "https://prooftask.com/.well-known/prooftask-trust-bundle.json"
+  ],
+  "keys": [
+    {
+      "issuer": "https://prooftask.com",
+      "keyId": "prooftask-ed25519-e069634faea0967c",
+      "fingerprintSha256": "e069634faea0967cf3ec8395ac8c06863296ed2ed2d316c52d802bb861b95ca3",
+      "status": "ACTIVE"
+    }
+  ]
+}

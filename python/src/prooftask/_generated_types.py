@@ -844,6 +844,7 @@ class CreateProject(_CreateProjectRequired, total=False):
     bitcoinTimeProof: "bool"
     commercialReference: "str"
     historyReference: "CreateProjectHistoryReference"
+    jurisdictionProfile: "CreateProjectJurisdictionProfile"
     publicRegistration: "Literal[True]"
     relatedReferences: "List[RelatedReference]"
     subjectRequirements: "SubjectRequirements"
@@ -855,6 +856,12 @@ class CreateProjectHistoryReference(TypedDict):
     digest: "str"
     meaning: "Literal[\"HISTORICAL_CONTEXT_ONLY\"]"
     schema: "Literal[\"prooftask.agreement-history-reference/v1\"]"
+
+
+class CreateProjectJurisdictionProfile(TypedDict):
+    digest: "Literal[\"sha256:19070c25b90aa00ab5125a09920780f150734d6058f79ec826596aa6dd920c99\"]"
+    id: "Literal[\"urn:prooftask:jurisdiction-profile:generic\"]"
+    version: "Literal[\"1\"]"
 
 
 class _CreateProjectTemplateBindingRequired(TypedDict):
@@ -1614,6 +1621,7 @@ class ProposalTerms(_ProposalTermsRequired, total=False):
     bitcoinTimeProof: "bool"
     commercialReference: "str"
     historyReference: "ProposalTermsHistoryReference"
+    jurisdictionProfile: "ProposalTermsJurisdictionProfile"
     publicRegistration: "Literal[True]"
     relatedReferences: "List[RelatedReference]"
     subjectRequirements: "SubjectRequirements"
@@ -1625,6 +1633,12 @@ class ProposalTermsHistoryReference(TypedDict):
     digest: "str"
     meaning: "Literal[\"HISTORICAL_CONTEXT_ONLY\"]"
     schema: "Literal[\"prooftask.agreement-history-reference/v1\"]"
+
+
+class ProposalTermsJurisdictionProfile(TypedDict):
+    digest: "Literal[\"sha256:19070c25b90aa00ab5125a09920780f150734d6058f79ec826596aa6dd920c99\"]"
+    id: "Literal[\"urn:prooftask:jurisdiction-profile:generic\"]"
+    version: "Literal[\"1\"]"
 
 
 class _ProposalTermsTemplateBindingRequired(TypedDict):

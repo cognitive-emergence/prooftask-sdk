@@ -169,6 +169,40 @@
           },
           "uniqueItems": true,
           "maxItems": 100
+        },
+        "legalContext": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "jurisdictionProfile"
+          ],
+          "properties": {
+            "jurisdictionProfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "version",
+                "digest"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                }
+              }
+            }
+          }
         }
       },
       "required": [
@@ -811,22 +845,233 @@
           ]
         },
         "attribution": {
-          "type": "object",
-          "properties": {
-            "basis": {
-              "const": "REPORTER_ASSERTION"
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "basis": {
+                  "const": "REPORTER_ASSERTION"
+                },
+                "reporter": {
+                  "type": "string",
+                  "maxLength": 4096,
+                  "pattern": "^https://[^/?#]+$"
+                }
+              },
+              "required": [
+                "basis",
+                "reporter"
+              ],
+              "additionalProperties": false
             },
-            "reporter": {
-              "type": "string",
-              "maxLength": 4096,
-              "pattern": "^https://[^/?#]+$"
+            {
+              "type": "object",
+              "properties": {
+                "basis": {
+                  "const": "REPORTER_ASSERTION"
+                },
+                "reporter": {
+                  "type": "string",
+                  "maxLength": 4096,
+                  "pattern": "^https://[^/?#]+$"
+                },
+                "bindingMethod": {
+                  "const": "REPORTER"
+                },
+                "assurance": {
+                  "const": "REPORTED_BY_PLATFORM"
+                },
+                "evidenceRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              },
+              "required": [
+                "basis",
+                "reporter",
+                "bindingMethod",
+                "assurance",
+                "evidenceRef"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "basis": {
+                  "const": "ISSUER_OBSERVATION"
+                },
+                "bindingMethod": {
+                  "const": "INVITED_MAILBOX"
+                },
+                "assurance": {
+                  "const": "MAILBOX_ACCESS_OBSERVED"
+                },
+                "evidenceRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "sessionMethod": {
+                  "enum": [
+                    "EMAIL_CODE",
+                    "GOOGLE",
+                    "GITHUB",
+                    "APPLE",
+                    "WORKSPACE_SSO"
+                  ]
+                },
+                "stepUp": {
+                  "const": "PASSKEY"
+                }
+              },
+              "required": [
+                "basis",
+                "bindingMethod",
+                "assurance",
+                "evidenceRef"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "basis": {
+                  "const": "ISSUER_OBSERVATION"
+                },
+                "bindingMethod": {
+                  "const": "ACCOUNT_ASSOCIATION"
+                },
+                "assurance": {
+                  "const": "ACCOUNT_ASSOCIATION_RECORDED"
+                },
+                "evidenceRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              },
+              "required": [
+                "basis",
+                "bindingMethod",
+                "assurance",
+                "evidenceRef"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "basis": {
+                  "const": "ISSUER_OBSERVATION"
+                },
+                "bindingMethod": {
+                  "const": "AUTHENTICATED_SESSION"
+                },
+                "assurance": {
+                  "const": "SESSION_AUTHENTICATION_OBSERVED"
+                },
+                "evidenceRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "sessionMethod": {
+                  "enum": [
+                    "EMAIL_CODE",
+                    "GOOGLE",
+                    "GITHUB",
+                    "APPLE",
+                    "WORKSPACE_SSO"
+                  ]
+                },
+                "stepUp": {
+                  "const": "PASSKEY"
+                }
+              },
+              "required": [
+                "basis",
+                "bindingMethod",
+                "assurance",
+                "evidenceRef",
+                "sessionMethod"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "basis": {
+                  "const": "ISSUER_OBSERVATION"
+                },
+                "bindingMethod": {
+                  "const": "API_CREDENTIAL"
+                },
+                "assurance": {
+                  "const": "CREDENTIAL_USE_RECORDED"
+                },
+                "evidenceRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              },
+              "required": [
+                "basis",
+                "bindingMethod",
+                "assurance",
+                "evidenceRef"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "basis": {
+                  "const": "ISSUER_OBSERVATION"
+                },
+                "bindingMethod": {
+                  "const": "DELEGATED_AGENT"
+                },
+                "assurance": {
+                  "const": "DELEGATION_RECORDED"
+                },
+                "evidenceRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "delegatedAction": {
+                  "enum": [
+                    "RUN_CHECKS",
+                    "CREATE_DRAFT",
+                    "CREATE_PROJECT",
+                    "CREATE_PROPOSAL",
+                    "UPDATE_PROPOSAL",
+                    "PUBLISH_PROPOSAL",
+                    "RESPOND_PROPOSAL",
+                    "WITHDRAW_PROPOSAL",
+                    "RESPOND_TERMS",
+                    "SUBMIT_MATERIALS",
+                    "REVIEW_DELIVERY",
+                    "CONFIRM_COMPLETION",
+                    "REQUEST_DATE_CHANGE",
+                    "RAISE_CONCERN",
+                    "ISSUE_RESULT_RECORD"
+                  ]
+                }
+              },
+              "required": [
+                "basis",
+                "bindingMethod",
+                "assurance",
+                "evidenceRef",
+                "delegatedAction"
+              ],
+              "additionalProperties": false
             }
-          },
-          "required": [
-            "basis",
-            "reporter"
-          ],
-          "additionalProperties": false
+          ]
         },
         "extensions": {
           "type": "object",

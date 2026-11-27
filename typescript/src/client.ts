@@ -5,7 +5,7 @@ import { apiError, ProofTaskTransportError, type ApiErrorBody } from './errors.t
 import { requestIdOf } from './request-id.ts';
 import { paginate } from './pagination.ts';
 
-export const SDK_VERSION = '0.1.2';
+export const SDK_VERSION = '0.1.4';
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
 export interface ClientOptions {

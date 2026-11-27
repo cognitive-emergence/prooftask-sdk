@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prooftask"
-version = "0.1.2"
+version = "0.1.4"
 description = "ProofTask Agent API client generated from the OpenAPI contract, with webhook signature verification, idempotent request IDs, pagination and typed errors. Standard library only."
 readme = "README.md"
 license = "Apache-2.0"

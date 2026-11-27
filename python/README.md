@@ -90,6 +90,8 @@ tests. Report problems through [ProofTask support](https://prooftask.com/support
 
 ## Changelog
 
+- **0.1.4** Offline verification reports the public rules fixed by each agreement and the identity evidence recorded for each action. A selective presentation identifies the original events it withholds.
+- **0.1.3** Use `--result-file` to verify the public registration attached to a downloaded result record and inspect its signed session observations. Use `preview_project_webhook` to see what an authorized project callback would disclose.
 - **0.1.2**: agreement creation supports the optional `bitcoinTimeProof` field (default `false`). The offline verifier checks RFC 3161 evidence for individual agreement events and issued records.
 - **0.1.1**: the source is public at cognitive-emergence/prooftask-sdk, and the project's `Source` URL points there.
   Updated README and project metadata; the unit tests also run outside the ProofTask repository. No API change.
@@ -117,4 +119,12 @@ When a supplier authorizes a proposal in advance, the corresponding session rows
 
 Run `python -m prooftask.conformity --result-file receipt.json issuer-trust.json` with the Conformity issuer keys you trust. The command verifies the signed delivery and its session evidence offline. If the agreement includes public registration, the report also checks the log's signed tree head, salted issuance commitment and Merkle inclusion proofs. A later logged status identifies its sequence. A tree head can carry an RFC 3161 timestamp. Bitcoin evidence belongs to the individually selected record.
 
-Read `registration.status` for the registration outcome and `uncheckedResultFileFields` for any accompanying status statement or private openings outside this inspection. A verified registration describes the supplied tree head at its recorded time. Exit code 1 signals a failed check. Exit code 3 signals an agreed, issued record whose registration is pending or missing. The signed delivery decision remains available in the report.
+Read `registration.status` for the registration outcome and `uncheckedResultFileFields` for any accompanying status statement outside this inspection. For a private agreement, `privateContent` reports how many fields were opened, remain sealed or failed verification. Supply a separate disclosure file with the following command.
+
+```sh
+python -m prooftask.conformity --result-file receipt.json issuer-trust.json --openings selected-openings.json
+```
+
+The separate file takes precedence over openings embedded in the receipt. `privateContentSource` identifies the selected input. If both are present, the embedded openings are listed under `uncheckedResultFileFields`. The command recomputes each salted field commitment against the signed record and its verified workflow documents. It prints counts without printing values or salts. A mismatched disclosure returns exit code 1 and the signed history keeps its own verdict.
+
+A verified registration describes the supplied tree head at its recorded time. Exit code 1 signals a failed check. Exit code 3 signals an agreed, issued record whose registration is pending or missing. The signed delivery decision remains available in the report.

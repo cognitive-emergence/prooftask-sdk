@@ -9,6 +9,8 @@ The public source of ProofTask's client SDKs and offline verifier for ProofTask 
 | [`python/`](python) | [`prooftask`](https://pypi.org/project/prooftask/) on PyPI | Agent API client for Python and `prooftask.conformity`, an independent offline verifier for Conformity records |
 | [`verifiers/`](verifiers) | — | `verify-conformity.mjs`, the offline verifier served at [prooftask.com/developers/verify-conformity.mjs](https://prooftask.com/developers/verify-conformity.mjs) (Node.js, no dependencies, no network) |
 
+The [issuer key fingerprints](verifiers/operator-issuers.json) list the signing keys pinned in this revision, their status and any validity dates.
+
 A result record states what was agreed, delivered and decided. The verifiers check its signatures and integrity
 offline against issuer keys you obtain independently; they do not establish work quality, payment or company authority.
 
