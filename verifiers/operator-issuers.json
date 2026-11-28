@@ -11,6 +11,13 @@
       "keyId": "prooftask-ed25519-e069634faea0967c",
       "fingerprintSha256": "e069634faea0967cf3ec8395ac8c06863296ed2ed2d316c52d802bb861b95ca3",
       "status": "ACTIVE"
+    },
+    {
+      "issuer": "https://prooftask.com",
+      "keyId": "prooftask-ed25519-1aaa7fbc51ed7f37",
+      "fingerprintSha256": "1aaa7fbc51ed7f37c042a9376dad211e6f8434f7daca8ca07c962a6dfa604864",
+      "status": "ACTIVE",
+      "validFrom": "2026-11-22T10:30:00.000Z"
     }
   ]
 }
